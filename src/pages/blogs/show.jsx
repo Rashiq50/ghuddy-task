@@ -1,19 +1,37 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { Link } from 'react-router-dom';
 import { addComment } from '../../features/blogs/blogSlice';
+import CommentThread from './commentThread';
 import './show.css';
 
 function BlogDetails() {
     const { selectedBlog } = useSelector((state) => state.blogs);
     const { comments } = useSelector((state) => state.blogs);
 
-    const commentForThisBlog = comments.filter(el => (el.type === 'comment' && el.blog_id === selectedBlog.id)).sort((a,b)=>{return new Date(b.date) - new Date(a.date);});
-    const repliesForThisBlog = comments.filter(el => (el.type === 'reply' && el.blog_id === selectedBlog.id)).sort((a,b)=>{return new Date(b.date) - new Date(a.date);});
+    const commentForThisBlog = comments.filter(el => (el.blog_id === selectedBlog.id)).sort((a, b) => { return new Date(b.date) - new Date(a.date); }).map((element) => { return { ...element, status: 'unmapped' } });
 
-    const commentWithReplies = commentForThisBlog.map((cm) => {
-        return { ...cm, replies: repliesForThisBlog.filter(el => el.comment_id === cm.id) }
-    })
+    const commentsAndRepliesMapper = () => {
+        const finalData = [];
+        for (let i = 0; i < commentForThisBlog.length; i++) {
+            const parent = commentForThisBlog[i];
+            const replies = [];
+            for (let j = 0; j < commentForThisBlog.length; j++) {
+                const element = commentForThisBlog[j];
+                if (element.id != parent.id && element.status === 'unmapped') {
+                    if (element.comment_id === parent.id) {
+                        replies.push(element);
+                        element.status = "mapped";
+                    }
+                }
+                parent.replies = replies;
+            }
+            finalData.push(parent);
+        }
+        return [...finalData.filter(el => el.status != 'mapped')];
+    }
+
+    const finalData = commentsAndRepliesMapper();
 
     const [name, setName] = useState('');
     const [content, setContent] = useState('');
@@ -24,15 +42,15 @@ function BlogDetails() {
     const dispatch = useDispatch();
 
     const postComment = () => {
-        if (name.length > 0 && content.length > 0) {            
+        if (name.length > 0 && content.length > 0) {
             dispatch(addComment({
-                id:Math.floor(Math.random() * 9999),
-                name, 
-                content, 
-                type, 
-                comment_id:commentToReply?.id || null, 
+                id: Math.floor(Math.random() * 9999),
+                name,
+                content,
+                type,
+                comment_id: commentToReply?.id || null,
                 blog_id: selectedBlog.id,
-                date:new Date()
+                date: new Date()
             }));
             setReplyStatus(false);
             setCommentToReply(null);
@@ -40,7 +58,7 @@ function BlogDetails() {
             setName("");
             setContent("");
         }
-        else{
+        else {
             alert("Please fill up all the fields!")
         }
     }
@@ -72,11 +90,11 @@ function BlogDetails() {
                 <div className='card  p-4'>
                     {replyStatus &&
                         <div className='d-flex py-1 align-items-center'>
-                            <div className=''> 
-                                Reply to: 
-                                <span className='text-dark fw-bold'> {commentToReply?.name} </span> 
+                            <div className=''>
+                                Reply to:
+                                <span className='text-dark fw-bold'> {commentToReply?.name} </span>
                             </div>
-                            <button onClick={()=>{setReplyStatus(false);setCommentToReply(null);setType('comment')}} className='btn btn-sm mx-2 btn-link'> Cancel </button>
+                            <button onClick={() => { setReplyStatus(false); setCommentToReply(null); setType('comment') }} className='btn btn-sm mx-2 btn-link'> Cancel </button>
                         </div>
                     }
                     <div>
@@ -92,48 +110,10 @@ function BlogDetails() {
                     </div>
                 </div>
                 <div className='mt-4'>
-                    <h3> {commentForThisBlog?.length + repliesForThisBlog.length}  Comments</h3>
-                    <div className='mt-3'>
-                        {commentWithReplies?.map((comment) => (
-                            <div key={comment.id}>
-                                <div className="card p-3 my-3">
-                                    <div className='d-flex align-items-center py-2'>
-                                        <div className='commentThumb'>
-                                            <img src={`https://picsum.photos/200?random=${comment?.id}`} />
-                                        </div>
-                                        <div className='ms-3'>
-                                            <h4 className='fw-bold'>
-                                                {comment.name} <span> <button onClick={()=>{setReplyStatus(true);setCommentToReply(comment);setType('reply')}} className='btn btn-sm btn-link'>Reply</button> </span>
-                                            </h4>
-                                            <h5> { new Date(comment.date).toLocaleString()} </h5>
-                                        </div>
-                                    </div>
-                                    <div className='p-2 rounded bg-light h6'>
-                                        {comment.content}
-                                    </div>
-                                </div>
-
-                                {comment.replies?.map((reply) => (
-                                    <div key={reply.id} className='ps-5'>
-                                        <div className="card p-3 my-2">
-                                            <div className='d-flex align-items-center py-2'>
-                                                <div className='commentThumb'>
-                                                    <img src={`https://picsum.photos/200?random=${reply?.id}`} />
-                                                </div>
-                                                <div className='ms-3'>
-                                                    <h4 className='fw-bold'>
-                                                        {reply.name}
-                                                    </h4>
-                                                    <h5> {new Date(reply.date).toLocaleString()} </h5>
-                                                </div>
-                                            </div>
-                                            <div className='p-2 rounded bg-light h6'>
-                                                {reply.content}
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
+                    <h3> {commentForThisBlog?.length}  Comments</h3>
+                    <div className='mt-3 ' >
+                        {finalData?.map((comment) => (
+                            <CommentThread key={comment.id} parent={comment} setCommentToReply={setCommentToReply} setReplyStatus={setReplyStatus} />
                         ))}
                     </div>
                 </div>
